@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Quincena">
+<link rel="manifest" href="manifest.json">
+<title>Control de Quincena</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;color:#111827;background:#f5f5f7}
+*{box-sizing:border-box}body{margin:0;padding:18px 14px 30px}.app{max-width:720px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+h1{font-size:27px;margin:0 0 4px} .sub{color:#6b7280;font-size:14px}
+button,input{font:inherit}.add{border:0;border-radius:12px;padding:12px 15px;background:#111827;color:white;font-weight:700}
+.card,.summary{background:white;border:1px solid #e5e7eb;border-radius:17px;padding:15px;margin-bottom:12px}
+.name-row{display:flex;gap:8px;margin-bottom:12px}.name{flex:1}
+input{width:100%;border:1px solid #d1d5db;border-radius:11px;padding:11px 12px;background:#fff;outline:none}
+input:focus{border-color:#111827}.delete{border:0;background:#f3f4f6;border-radius:11px;width:44px}
+.grid{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}.label{font-size:12px;color:#6b7280;margin-bottom:5px}
+.controls{display:flex;align-items:center;gap:5px}.step{width:44px;height:44px;border:1px solid #d1d5db;background:white;border-radius:11px;font-size:22px}
+.hours{min-width:45px;text-align:center;font-weight:800;font-size:19px}
+.summary{margin-top:18px;padding:19px}.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.metric small{display:block;color:#6b7280;font-size:13px}.metric strong{display:block;font-size:29px;margin-top:3px}
+.count{border-top:1px solid #eee;margin-top:15px;padding-top:12px;color:#6b7280;font-size:13px;display:flex;justify-content:space-between}
+.empty{text-align:center;color:#6b7280;padding:22px}.note{text-align:center;color:#9ca3af;font-size:11px;margin-top:10px}
+@media(max-width:380px){h1{font-size:24px}.add{padding:11px 12px}.grid{grid-template-columns:1fr}.controls{justify-content:flex-end}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div><h1>Control de quincena</h1><div class="sub">Registra tus horas y calcula cuánto llevas ganado.</div></div><button class="add" id="add">＋ Agregar</button></header>
+<main id="rows"></main>
+<section class="summary">
+<div class="summary-grid">
+<div class="metric"><small>Horas totales</small><strong id="totalHours">0 h</strong></div>
+<div class="metric"><small>Total ganado</small><strong id="totalMoney">$0.00</strong></div>
+</div>
+<div class="count"><span>Registros</span><span id="count">0</span></div>
+</section>
+<div class="note">Los cambios se guardan automáticamente en este dispositivo.</div>
+</div>
+<script>
+const KEY="control_quincena_v1";
+let data=JSON.parse(localStorage.getItem(KEY)||"[]");
+if(!Array.isArray(data)||!data.length)data=[{id:Date.now(),name:"Trabajo",rate:100,hours:0}];
+const rows=document.getElementById("rows"), money=n=>new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN"}).format(n||0);
+function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function totals(){
+ let h=data.reduce((a,x)=>a+(+x.hours||0),0), m=data.reduce((a,x)=>a+(+x.hours||0)*(+x.rate||0),0);
+ document.getElementById("totalHours").textContent=(Math.round(h*100)/100)+" h";
+ document.getElementById("totalMoney").textContent=money(m);
+ document.getElementById("count").textContent=data.length;
+}
+function render(){
+ rows.innerHTML="";
+ if(!data.length){rows.innerHTML='<div class="card empty">No hay registros. Pulsa ＋ Agregar para comenzar.</div>';totals();return}
+ data.forEach(x=>{
+  const c=document.createElement("section");c.className="card";
+  c.innerHTML=`<div class="name-row"><input class="name" value="${esc(x.name)}" placeholder="Nombre"><button class="delete" aria-label="Eliminar">✕</button></div>
+  <div class="grid"><div><div class="label">Precio por hora</div><input class="rate" type="number" min="0" step="0.01" inputmode="decimal" value="${x.rate}"></div>
+  <div><div class="label" style="text-align:center">Horas</div><div class="controls"><button class="step minus">−</button><div class="hours">${x.hours}</div><button class="step plus">+</button></div></div></div>`;
+  c.querySelector(".name").oninput=e=>{x.name=e.target.value;save()};
+  c.querySelector(".rate").oninput=e=>{x.rate=Math.max(0,parseFloat(e.target.value)||0);save();totals()};
+  c.querySelector(".minus").onclick=()=>{x.hours=Math.max(0,(+x.hours||0)-1);save();render()};
+  c.querySelector(".plus").onclick=()=>{x.hours=(+x.hours||0)+1;save();render()};
+  c.querySelector(".delete").onclick=()=>{data=data.filter(y=>y.id!==x.id);save();render()};
+  rows.appendChild(c);
+ });totals();
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+document.getElementById("add").onclick=()=>{data.push({id:Date.now()+Math.random(),name:"Nuevo registro",rate:0,hours:0});save();render()};
+render();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
